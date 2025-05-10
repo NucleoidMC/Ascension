@@ -1,30 +1,31 @@
 package io.github.haykam821.ascension.game;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import io.github.haykam821.ascension.game.map.AscensionMapConfig;
 import net.minecraft.SharedConstants;
 import net.minecraft.util.math.intprovider.ConstantIntProvider;
 import net.minecraft.util.math.intprovider.IntProvider;
-import xyz.nucleoid.plasmid.game.common.config.PlayerConfig;
+import xyz.nucleoid.plasmid.api.game.common.config.WaitingLobbyConfig;
 
 public class AscensionConfig {
-	public static final Codec<AscensionConfig> CODEC = RecordCodecBuilder.create(instance -> {
+	public static final MapCodec<AscensionConfig> CODEC = RecordCodecBuilder.mapCodec(instance -> {
 		return instance.group(
 			AscensionMapConfig.CODEC.fieldOf("map").forGetter(AscensionConfig::getMapConfig),
-			PlayerConfig.CODEC.fieldOf("players").forGetter(AscensionConfig::getPlayerConfig),
+			WaitingLobbyConfig.CODEC.fieldOf("players").forGetter(AscensionConfig::getPlayerConfig),
 			IntProvider.NON_NEGATIVE_CODEC.optionalFieldOf("ticks_until_close", ConstantIntProvider.create(SharedConstants.TICKS_PER_SECOND * 5)).forGetter(AscensionConfig::getTicksUntilClose),
 			Codec.INT.optionalFieldOf("jump_boost_amplifier", 8).forGetter(AscensionConfig::getJumpBoostAmplifier)
 		).apply(instance, AscensionConfig::new);
 	});
 
 	private final AscensionMapConfig mapConfig;
-	private final PlayerConfig playerConfig;
+	private final WaitingLobbyConfig playerConfig;
 	private final IntProvider ticksUntilClose;
 	private final int jumpBoostAmplifier;
 
-	public AscensionConfig(AscensionMapConfig mapConfig, PlayerConfig playerConfig, IntProvider ticksUntilClose, int jumpBoostAmplifier) {
+	public AscensionConfig(AscensionMapConfig mapConfig, WaitingLobbyConfig playerConfig, IntProvider ticksUntilClose, int jumpBoostAmplifier) {
 		this.mapConfig = mapConfig;
 		this.playerConfig = playerConfig;
 		this.ticksUntilClose = ticksUntilClose;
@@ -35,7 +36,7 @@ public class AscensionConfig {
 		return this.mapConfig;
 	}
 
-	public PlayerConfig getPlayerConfig() {
+	public WaitingLobbyConfig getPlayerConfig() {
 		return this.playerConfig;
 	}
 

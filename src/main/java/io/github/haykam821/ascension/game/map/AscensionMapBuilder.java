@@ -36,7 +36,7 @@ public class AscensionMapBuilder {
 		if (pos.getY() == 0) {
 			return this.config.getMapConfig().getFloorProvider().get(random, pos);
 		} else if (random.nextInt(12) == 0) {
-			return Registries.BLOCK.getEntryList(BlockTags.WOOL)
+			return Registries.BLOCK.getOptional(BlockTags.WOOL)
 				.flatMap(wool -> wool.getRandom(random))
 				.map(RegistryEntry::value)
 				.map(Block::getDefaultState)

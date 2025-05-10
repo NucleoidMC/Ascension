@@ -14,20 +14,21 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
-import xyz.nucleoid.plasmid.game.GameActivity;
-import xyz.nucleoid.plasmid.game.GameCloseReason;
-import xyz.nucleoid.plasmid.game.GameSpace;
-import xyz.nucleoid.plasmid.game.event.GameActivityEvents;
-import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
-import xyz.nucleoid.plasmid.game.player.PlayerOffer;
-import xyz.nucleoid.plasmid.game.player.PlayerOfferResult;
-import xyz.nucleoid.plasmid.game.rule.GameRuleType;
+import xyz.nucleoid.plasmid.api.game.GameActivity;
+import xyz.nucleoid.plasmid.api.game.GameCloseReason;
+import xyz.nucleoid.plasmid.api.game.GameSpace;
+import xyz.nucleoid.plasmid.api.game.event.GameActivityEvents;
+import xyz.nucleoid.plasmid.api.game.event.GamePlayerEvents;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptor;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptorResult;
+import xyz.nucleoid.plasmid.api.game.player.JoinOffer;
+import xyz.nucleoid.plasmid.api.game.rule.GameRuleType;
+import xyz.nucleoid.stimuli.event.EventResult;
 import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
 public class AscensionActivePhase {
@@ -58,7 +59,7 @@ public class AscensionActivePhase {
 	}
 
 	public static void open(GameSpace gameSpace, ServerWorld world, AscensionMap map, AscensionConfig config) {
-		AscensionActivePhase phase = new AscensionActivePhase(gameSpace, world, map, config, Sets.newHashSet(gameSpace.getPlayers()));
+		AscensionActivePhase phase = new AscensionActivePhase(gameSpace, world, map, config, Sets.newHashSet(gameSpace.getPlayers().participants()));
 
 		gameSpace.setActivity(activity -> {
 			AscensionActivePhase.setRules(activity);
@@ -66,7 +67,8 @@ public class AscensionActivePhase {
 			// Listeners
 			activity.listen(GameActivityEvents.ENABLE, phase::enable);
 			activity.listen(GameActivityEvents.TICK, phase::tick);
-			activity.listen(GamePlayerEvents.OFFER, phase::offerPlayer);
+			activity.listen(GamePlayerEvents.ACCEPT, phase::onAcceptPlayers);
+			activity.listen(GamePlayerEvents.OFFER, JoinOffer::acceptSpectators);
 			activity.listen(GamePlayerEvents.REMOVE, phase::removePlayer);
 			activity.listen(PlayerDeathEvent.EVENT, phase::onPlayerDeath);
 		});
@@ -80,6 +82,11 @@ public class AscensionActivePhase {
 			player.addStatusEffect(jumpBoost);
 		
 			AscensionActivePhase.spawn(this.world, this.map, player);
+		}
+
+		for (ServerPlayerEntity player : this.gameSpace.getPlayers().spectators()) {
+			AscensionActivePhase.spawn(this.world, this.map, player);
+			this.setSpectator(player);
 		}
 	}
 
@@ -139,9 +146,9 @@ public class AscensionActivePhase {
 		player.changeGameMode(GameMode.SPECTATOR);
 	}
 
-	public PlayerOfferResult offerPlayer(PlayerOffer offer) {
-		return offer.accept(this.world, AscensionActivePhase.getSpawnPos(this.world, this.map)).and(() -> {
-			this.setSpectator(offer.player());
+	public JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
+		return acceptor.teleport(this.world, AscensionActivePhase.getSpawnPos(this.world, this.map)).thenRunForEach(player -> {
+			this.setSpectator(player);
 		});
 	}
 
@@ -149,9 +156,9 @@ public class AscensionActivePhase {
 		this.players.remove(player);
 	}
 
-	private ActionResult onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
+	private EventResult onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
 		AscensionActivePhase.spawn(this.world, this.map, player);
-		return ActionResult.SUCCESS;
+		return EventResult.ALLOW;
 	}
 
 	public static Vec3d getSpawnPos(ServerWorld world, AscensionMap map) {
@@ -166,7 +173,7 @@ public class AscensionActivePhase {
 
 	public static void spawn(ServerWorld world, AscensionMap map, ServerPlayerEntity player) {
 		Vec3d spawnPos = AscensionActivePhase.getSpawnPos(world, map);
-		player.teleport(world, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(), 0, 0);
+		player.teleport(world, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(), Set.of(), 0, 0, true);
 	}
 
 	static {
