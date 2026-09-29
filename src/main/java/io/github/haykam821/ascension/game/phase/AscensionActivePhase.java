@@ -3,22 +3,21 @@ package io.github.haykam821.ascension.game.phase;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.Set;
-
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.Vec3;
 import com.google.common.collect.Sets;
 
 import io.github.haykam821.ascension.game.AscensionConfig;
 import io.github.haykam821.ascension.game.map.AscensionMap;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
 import xyz.nucleoid.plasmid.api.game.GameActivity;
 import xyz.nucleoid.plasmid.api.game.GameCloseReason;
 import xyz.nucleoid.plasmid.api.game.GameSpace;
@@ -35,14 +34,14 @@ public class AscensionActivePhase {
 	private static final DecimalFormat FORMAT = new DecimalFormat("0.##");
 
 	private final GameSpace gameSpace;
-	private final ServerWorld world;
+	private final ServerLevel world;
 	private final AscensionMap map;
 	private final AscensionConfig config;
-	private final Set<ServerPlayerEntity> players;
+	private final Set<ServerPlayer> players;
 	private int ticksElapsed = 0;
 	private int ticksUntilClose = -1;
 
-	public AscensionActivePhase(GameSpace gameSpace, ServerWorld world, AscensionMap map, AscensionConfig config, Set<ServerPlayerEntity> players) {
+	public AscensionActivePhase(GameSpace gameSpace, ServerLevel world, AscensionMap map, AscensionConfig config, Set<ServerPlayer> players) {
 		this.gameSpace = gameSpace;
 		this.world = world;
 		this.map = map;
@@ -58,7 +57,7 @@ public class AscensionActivePhase {
 		activity.deny(GameRuleType.PVP);
 	}
 
-	public static void open(GameSpace gameSpace, ServerWorld world, AscensionMap map, AscensionConfig config) {
+	public static void open(GameSpace gameSpace, ServerLevel world, AscensionMap map, AscensionConfig config) {
 		AscensionActivePhase phase = new AscensionActivePhase(gameSpace, world, map, config, Sets.newHashSet(gameSpace.getPlayers().participants()));
 
 		gameSpace.setActivity(activity -> {
@@ -75,16 +74,16 @@ public class AscensionActivePhase {
 	}
 
 	public void enable() {
- 		for (ServerPlayerEntity player : this.players) {
-			player.changeGameMode(GameMode.ADVENTURE);
+ 		for (ServerPlayer player : this.players) {
+			player.setGameMode(GameType.ADVENTURE);
 		
-			StatusEffectInstance jumpBoost = new StatusEffectInstance(StatusEffects.JUMP_BOOST, StatusEffectInstance.INFINITE, this.config.getJumpBoostAmplifier(), true, false, false);
-			player.addStatusEffect(jumpBoost);
+			MobEffectInstance jumpBoost = new MobEffectInstance(MobEffects.JUMP_BOOST, MobEffectInstance.INFINITE_DURATION, this.config.getJumpBoostAmplifier(), true, false, false);
+			player.addEffect(jumpBoost);
 		
 			AscensionActivePhase.spawn(this.world, this.map, player);
 		}
 
-		for (ServerPlayerEntity player : this.gameSpace.getPlayers().spectators()) {
+		for (ServerPlayer player : this.gameSpace.getPlayers().spectators()) {
 			AscensionActivePhase.spawn(this.world, this.map, player);
 			this.setSpectator(player);
 		}
@@ -94,13 +93,13 @@ public class AscensionActivePhase {
 		return this.map.getBounds().max().getY();
 	}
 
-	private boolean isFinished(ServerPlayerEntity player) {
+	private boolean isFinished(ServerPlayer player) {
 		return player.getY() > this.getEndY();
 	}
 
-	private Text getWinMessage(ServerPlayerEntity player) {
+	private Component getWinMessage(ServerPlayer player) {
 		String time = AscensionActivePhase.FORMAT.format(this.ticksElapsed / (double) 20);
-		return player.getDisplayName().copy().append(" has won the game in " + time + " seconds!").formatted(Formatting.GOLD);
+		return player.getDisplayName().copy().append(" has won the game in " + time + " seconds!").withStyle(ChatFormatting.GOLD);
 	}
 
 	private void tick() {
@@ -112,13 +111,13 @@ public class AscensionActivePhase {
 
 			this.ticksUntilClose -= 1;
 		} else {
-			for (ServerPlayerEntity player : this.players) {
+			for (ServerPlayer player : this.players) {
 				if (this.isFinished(player)) {
 					// Send win message
-					Text message = this.getWinMessage(player);
+					Component message = this.getWinMessage(player);
 					this.gameSpace.getPlayers().sendMessage(message);
 
-					this.ticksUntilClose = this.config.getTicksUntilClose().get(this.world.getRandom());
+					this.ticksUntilClose = this.config.getTicksUntilClose().sample(this.world.getRandom());
 					break;
 				}
 			}
@@ -126,13 +125,13 @@ public class AscensionActivePhase {
 
 		int minY = this.map.getBounds().min().getY();
 
-		for (ServerPlayerEntity player : this.players) {
+		for (ServerPlayer player : this.players) {
 			if (player.getY() < minY) {
 				AscensionActivePhase.spawn(this.world, this.map, player);
 			}
 
-			player.experienceProgress = (float) MathHelper.clamp(player.getY() / this.getEndY(), 0, 1);
-			player.setExperienceLevel((int) Math.max(0, this.getEndY() - player.getY()));
+			player.experienceProgress = (float) Mth.clamp(player.getY() / this.getEndY(), 0, 1);
+			player.setExperienceLevels((int) Math.max(0, this.getEndY() - player.getY()));
 		}
 
 		this.ticksElapsed += 1;
@@ -142,8 +141,8 @@ public class AscensionActivePhase {
 		return this.ticksUntilClose >= 0;
 	}
 
-	private void setSpectator(ServerPlayerEntity player) {
-		player.changeGameMode(GameMode.SPECTATOR);
+	private void setSpectator(ServerPlayer player) {
+		player.setGameMode(GameType.SPECTATOR);
 	}
 
 	public JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
@@ -152,28 +151,28 @@ public class AscensionActivePhase {
 		});
 	}
 
-	private void removePlayer(ServerPlayerEntity player) {
+	private void removePlayer(ServerPlayer player) {
 		this.players.remove(player);
 	}
 
-	private EventResult onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
+	private EventResult onPlayerDeath(ServerPlayer player, DamageSource source) {
 		AscensionActivePhase.spawn(this.world, this.map, player);
 		return EventResult.ALLOW;
 	}
 
-	public static Vec3d getSpawnPos(ServerWorld world, AscensionMap map) {
+	public static Vec3 getSpawnPos(ServerLevel world, AscensionMap map) {
 		BlockPos min = map.getBounds().min();
 		BlockPos max = map.getBounds().max();
 
 		int x = world.getRandom().nextInt(max.getX() - min.getX()) + min.getX();
 		int z = world.getRandom().nextInt(max.getZ() - min.getZ()) + min.getZ();
 
-		return new Vec3d(x + 0.5, 1, z + 0.5);
+		return new Vec3(x + 0.5, 1, z + 0.5);
 	}
 
-	public static void spawn(ServerWorld world, AscensionMap map, ServerPlayerEntity player) {
-		Vec3d spawnPos = AscensionActivePhase.getSpawnPos(world, map);
-		player.teleport(world, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(), Set.of(), 0, 0, true);
+	public static void spawn(ServerLevel world, AscensionMap map, ServerPlayer player) {
+		Vec3 spawnPos = AscensionActivePhase.getSpawnPos(world, map);
+		player.teleportTo(world, spawnPos.x(), spawnPos.y(), spawnPos.z(), Set.of(), 0, 0, true);
 	}
 
 	static {

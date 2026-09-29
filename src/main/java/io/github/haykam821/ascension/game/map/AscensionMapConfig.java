@@ -2,9 +2,8 @@ package io.github.haykam821.ascension.game.map;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-
-import net.minecraft.block.Blocks;
-import net.minecraft.world.gen.stateprovider.BlockStateProvider;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
 
 public class AscensionMapConfig {
 	public static final Codec<AscensionMapConfig> CODEC = RecordCodecBuilder.create(instance -> {
@@ -13,7 +12,7 @@ public class AscensionMapConfig {
 			Codec.INT.fieldOf("z").forGetter(AscensionMapConfig::getZ),
 			Codec.INT.fieldOf("layers").forGetter(AscensionMapConfig::getLayers),
 			Codec.INT.fieldOf("layer_spacing").forGetter(AscensionMapConfig::getLayerSpacing),
-			BlockStateProvider.TYPE_CODEC.optionalFieldOf("floor_provider", BlockStateProvider.of(Blocks.SMOOTH_QUARTZ)).forGetter(AscensionMapConfig::getFloorProvider)
+			BlockStateProvider.DIRECT_CODEC.optionalFieldOf("floor_provider", BlockStateProvider.of(Blocks.SMOOTH_QUARTZ)).forGetter(AscensionMapConfig::getFloorProvider)
 		).apply(instance, AscensionMapConfig::new);
 	});
 

@@ -3,11 +3,11 @@ package io.github.haykam821.ascension.game.phase;
 import io.github.haykam821.ascension.game.AscensionConfig;
 import io.github.haykam821.ascension.game.map.AscensionMap;
 import io.github.haykam821.ascension.game.map.AscensionMapBuilder;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.world.GameMode;
-import xyz.nucleoid.fantasy.RuntimeWorldConfig;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.level.GameType;
+import xyz.nucleoid.fantasy.RuntimeLevelConfig;
 import xyz.nucleoid.plasmid.api.game.GameOpenContext;
 import xyz.nucleoid.plasmid.api.game.GameOpenProcedure;
 import xyz.nucleoid.plasmid.api.game.GameResult;
@@ -23,11 +23,11 @@ import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
 public class AscensionWaitingPhase {
 	private final GameSpace gameSpace;
-	private final ServerWorld world;
+	private final ServerLevel world;
 	private final AscensionMap map;
 	private final AscensionConfig config;
 
-	public AscensionWaitingPhase(GameSpace gameSpace, ServerWorld world, AscensionMap map, AscensionConfig config) {
+	public AscensionWaitingPhase(GameSpace gameSpace, ServerLevel world, AscensionMap map, AscensionConfig config) {
 		this.gameSpace = gameSpace;
 		this.world = world;
 		this.map = map;
@@ -38,10 +38,10 @@ public class AscensionWaitingPhase {
 		AscensionMapBuilder mapBuilder = new AscensionMapBuilder(context.config());
 		AscensionMap map = mapBuilder.create();
 
-		RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
+		RuntimeLevelConfig worldConfig = new RuntimeLevelConfig()
 			.setGenerator(map.createGenerator(context.server()));
 
-		return context.openWithWorld(worldConfig, (activity, world) -> {
+		return context.openWithLevel(worldConfig, (activity, world) -> {
 			AscensionWaitingPhase phase = new AscensionWaitingPhase(activity.getGameSpace(), world, map, context.config());
 
 			GameWaitingLobby.addTo(activity, context.config().getPlayerConfig());
@@ -59,7 +59,7 @@ public class AscensionWaitingPhase {
 
 	private void tick() {
 		int minY = map.getBounds().min().getY();
-		for (ServerPlayerEntity player : this.gameSpace.getPlayers()) {
+		for (ServerPlayer player : this.gameSpace.getPlayers()) {
 			if (player.getY() < minY) {
 				AscensionActivePhase.spawn(this.world, map, player);
 			}
@@ -73,11 +73,11 @@ public class AscensionWaitingPhase {
 
 	public JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
 		return acceptor.teleport(this.world, AscensionActivePhase.getSpawnPos(this.world, this.map)).thenRunForEach(player -> {
-			player.changeGameMode(GameMode.ADVENTURE);
+			player.setGameMode(GameType.ADVENTURE);
 		});
 	}
 
-	public EventResult onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
+	public EventResult onPlayerDeath(ServerPlayer player, DamageSource source) {
 		// Respawn player at the start
 		AscensionActivePhase.spawn(this.world, this.map, player);
 		return EventResult.DENY;
